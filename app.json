@@ -26,6 +26,8 @@
       "predictiveBackGestureEnabled": false,
       "package": "com.fitnesspro.app",
       "minSdkVersion": 26,
+      "compileSdkVersion": 35,
+      "targetSdkVersion": 35,
       "permissions": [
         "android.permission.health.READ_STEPS",
         "android.permission.health.READ_HEART_RATE",
@@ -51,7 +53,12 @@
         }
       ],
       "expo-sqlite",
-      "react-native-health-connect",
+      [
+        "react-native-health-connect",
+        {
+          "minSdkVersion": 26
+        }
+      ],
       [
         "@kingstinct/react-native-healthkit",
         {
