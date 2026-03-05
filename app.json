@@ -63,12 +63,7 @@
         }
       ],
       "expo-sqlite",
-      [
-        "react-native-health-connect",
-        {
-          "minSdkVersion": 26
-        }
-      ],
+      "react-native-health-connect",
       [
         "@kingstinct/react-native-healthkit",
         {

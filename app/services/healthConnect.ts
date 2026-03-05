@@ -55,14 +55,19 @@ class HealthConnectService {
 
   // Request permissions for health data access
   async requestPermissions(): Promise<boolean> {
-    if (!this.isInitialized) {
-      const initialized = await this.initialize();
-      if (!initialized) {
-        return false;
-      }
-    }
-
     try {
+      // Ensure initialization is complete first
+      if (!this.isInitialized) {
+        console.log('📱 Health Connect not initialized, initializing now...');
+        const initialized = await this.initialize();
+        if (!initialized) {
+          console.error('❌ Cannot request permissions: Health Connect initialization failed');
+          return false;
+        }
+      }
+
+      console.log('🔐 Requesting Health Connect permissions...');
+
       // Request permissions for all health data types we need
       const permissions = [
         { accessType: 'read' as const, recordType: 'Steps' as const },
@@ -82,12 +87,16 @@ class HealthConnectService {
       if (granted) {
         console.log('✅ Health Connect permissions granted');
       } else {
-        console.log('⚠️ Health Connect permissions denied');
+        console.log(`⚠️ Health Connect permissions partially granted: ${permissionsGranted.length}/${permissions.length}`);
       }
       
       return granted;
     } catch (error) {
       console.error('❌ Health Connect permission request failed:', error);
+      if (error instanceof Error) {
+        console.error('Error details:', error.message);
+        console.error('Error stack:', error.stack);
+      }
       return false;
     }
   }
