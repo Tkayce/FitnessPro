@@ -5,6 +5,7 @@ import React from 'react';
 import { Text, View } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
 import { s } from 'react-native-wind';
+import { useTheme } from '../store/theme';
 import { GoalProgress } from '../types/fitness';
 
 interface MetricRingProps {
@@ -20,34 +21,39 @@ export const MetricRing: React.FC<MetricRingProps> = ({
   color = 'emerald',
   size = 120
 }) => {
+  const { colors, isDark } = useTheme();
+  
   const radius = (size - 12) / 2;
   const circumference = 2 * Math.PI * radius;
   const strokeDasharray = circumference;
   const strokeDashoffset = circumference - (progress.percentage / 100) * circumference;
   
   const colorMap = {
-    emerald: '#34d399', // emerald-400
-    blue: '#60a5fa',    // blue-400  
-    purple: '#a78bfa',  // purple-400
-    orange: '#fb923c'   // orange-400
+    emerald: colors.primary,
+    blue: colors.blue,
+    purple: colors.purple,
+    orange: colors.orange
   };
 
   const strokeColor = colorMap[color];
+  
+  // Background ring color - more visible in dark mode
+  const bgRingColor = isDark ? '#3f3f46' : colors.borderLight;
 
   return (
-    <View style={s`bg-zinc-900 border border-zinc-800 p-6 rounded-[32px] items-center`}>
+    <View style={s`items-center py-2`}>
       {/* Ring Title */}
-      <Text style={s`text-zinc-500 text-sm font-medium mb-4`}>{title}</Text>
+      <Text style={[s`text-sm font-medium mb-6`, { color: colors.textTertiary }]}>{title}</Text>
       
-      {/* SVG Ring */}
-      <View style={s`relative items-center justify-center`}>
-        <Svg width={size} height={size} style={s`absolute`}>
+      {/* SVG Ring with proper spacing */}
+      <View style={{ position: 'relative', width: size, height: size, alignItems: 'center', justifyContent: 'center', marginBottom: 20 }}>
+        <Svg width={size} height={size} style={{ position: 'absolute' }}>
           {/* Background circle */}
           <Circle
             cx={size / 2}
             cy={size / 2}
             r={radius}
-            stroke="#27272a" // zinc-800
+            stroke={bgRingColor}
             strokeWidth={6}
             fill="transparent"
           />
@@ -62,31 +68,31 @@ export const MetricRing: React.FC<MetricRingProps> = ({
             strokeDasharray={strokeDasharray}
             strokeDashoffset={strokeDashoffset}
             strokeLinecap="round"
-            transform={`rotate(-90 ${size / 2} ${size / 2})`}
+            transform={`rotate(-90 ${(size / 2).toString()} ${(size / 2).toString()})`}
           />
         </Svg>
         
-        {/* Center content */}
-        <View style={s`items-center justify-center`}>
-          <Text style={s`text-white text-2xl font-bold`}>
+        {/* Center content with absolute positioning */}
+        <View style={{ position: 'absolute', alignItems: 'center', justifyContent: 'center', width: size - 40, paddingHorizontal: 8 }}>
+          <Text style={[s`text-2xl font-bold`, { color: colors.text }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
             {progress.current.toLocaleString()}
           </Text>
-          <Text style={s`text-zinc-400 text-sm`}>
+          <Text style={[s`text-sm`, { color: colors.textSecondary }]} numberOfLines={1}>
             / {progress.target.toLocaleString()}
           </Text>
-          <Text style={s`text-${color}-400 text-xs font-medium mt-1`}>
-            {progress.percentage}%
+          <Text style={[s`text-xs font-medium mt-1`, { color: strokeColor }]}>
+            {progress.percentage.toString()}%
           </Text>
         </View>
       </View>
       
       {/* Trend indicator */}
       <View style={s`mt-4 flex-row items-center`}>
-        <Text style={s`text-xs text-zinc-500`}>
+        <Text style={[s`text-xs`, { color: colors.textTertiary }]}>
           {progress.trend === 'up' ? '↗' : progress.trend === 'down' ? '↘' : '→'}
         </Text>
-        <Text style={s`text-${color}-400 text-xs ml-1`}>
-          {progress.trendPercentage > 0 ? '+' : ''}{progress.trendPercentage}% today
+        <Text style={[s`text-xs ml-1`, { color: strokeColor }]}>
+          {progress.trendPercentage > 0 ? '+' : ''}{progress.trendPercentage.toString()}% today
         </Text>
       </View>
     </View>

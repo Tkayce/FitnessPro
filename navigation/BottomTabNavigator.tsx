@@ -10,11 +10,12 @@ import { Text, View } from 'react-native';
 import AnalyticsScreen from '../app/screens/AnalyticsScreen';
 import DashboardScreen from '../app/screens/DashboardScreen';
 import SettingsScreen from '../app/screens/SettingsScreen';
+import { useTheme } from '../app/store/theme';
 
 const Tab = createBottomTabNavigator();
 
 // Professional tab icon component
-const TabIcon = ({ name, focused, size = 20 }: { name: string; focused: boolean; size?: number }) => {
+const TabIcon = ({ name, focused, size = 20, colors, isDark }: { name: string; focused: boolean; size?: number; colors: any; isDark: boolean }) => {
   const getIconProps = () => {
     switch (name) {
       case 'Dashboard':
@@ -51,9 +52,9 @@ const TabIcon = ({ name, focused, size = 20 }: { name: string; focused: boolean;
           borderRadius: 22,
           alignItems: 'center',
           justifyContent: 'center',
-          backgroundColor: focused ? '#34d399' : 'transparent',
+          backgroundColor: focused ? colors.primary : 'transparent',
           marginBottom: 4,
-          shadowColor: focused ? '#34d399' : 'transparent',
+          shadowColor: focused ? colors.primary : 'transparent',
           shadowOffset: { width: 0, height: 3 },
           shadowOpacity: focused ? 0.4 : 0,
           shadowRadius: 6,
@@ -64,20 +65,18 @@ const TabIcon = ({ name, focused, size = 20 }: { name: string; focused: boolean;
         <IconComponent
           name={iconName}
           size={focused ? 22 : 20}
-          color={focused ? '#09090b' : '#71717a'}
+          color={focused ? (isDark ? colors.background : '#ffffff') : colors.textTertiary}
         />
       </View>
       <Text 
         style={{ 
-          fontSize: 22, 
-          fontWeight: focused ? '800' : '700',
-          color: focused ? '#34d399' : '#71717a',
-          marginTop: 1,
+          fontSize: 7, 
+          fontWeight: focused ? '600' : '500',
+          color: focused ? colors.primary : colors.textTertiary,
+          marginTop: 2,
           textAlign: 'center',
         }}
         numberOfLines={1}
-        adjustsFontSizeToFit={true}
-        minimumFontScale={0.7}
       >
         {name}
       </Text>
@@ -86,6 +85,8 @@ const TabIcon = ({ name, focused, size = 20 }: { name: string; focused: boolean;
 };
 
 export default function BottomTabNavigator() {
+  const { colors, isDark } = useTheme();
+  
   return (
     <Tab.Navigator
       initialRouteName="Dashboard"
@@ -93,22 +94,21 @@ export default function BottomTabNavigator() {
         headerShown: false,
         tabBarShowLabel: false,
         tabBarStyle: {
-          backgroundColor: '#09090b', // zinc-950 - professional dark
-          borderTopColor: '#27272a', // zinc-800 - subtle border
+          backgroundColor: colors.card,
+          borderTopColor: colors.border,
           borderTopWidth: 0.5,
           height: 120,
-          paddingBottom: 12,
+          paddingBottom: 1,
           paddingTop: 12,
           paddingHorizontal: 8,
           shadowColor: '#000',
           shadowOffset: { width: 0, height: -4 },
-          shadowOpacity: 0.15,
+          shadowOpacity: isDark ? 0.3 : 0.1,
           shadowRadius: 12,
           elevation: 16,
-          opacity: 0.98,
         },
-        tabBarActiveTintColor: '#34d399', // emerald-400
-        tabBarInactiveTintColor: '#71717a', // zinc-500
+        tabBarActiveTintColor: colors.primary,
+        tabBarInactiveTintColor: colors.textTertiary,
         tabBarHideOnKeyboard: true,
       }}
     >
@@ -117,7 +117,7 @@ export default function BottomTabNavigator() {
         component={DashboardScreen}
         options={{
           tabBarIcon: ({ focused }: { focused: boolean }) => (
-            <TabIcon name="Dashboard" focused={focused} />
+            <TabIcon name="Dashboard" focused={focused} colors={colors} isDark={isDark} />
           ),
         }}
       />
@@ -126,7 +126,7 @@ export default function BottomTabNavigator() {
         component={AnalyticsScreen}
         options={{
           tabBarIcon: ({ focused }: { focused: boolean }) => (
-            <TabIcon name="Analytics" focused={focused} />
+            <TabIcon name="Analytics" focused={focused} colors={colors} isDark={isDark} />
           ),
         }}
       />
@@ -135,7 +135,7 @@ export default function BottomTabNavigator() {
         component={SettingsScreen}
         options={{
           tabBarIcon: ({ focused }: { focused: boolean }) => (
-            <TabIcon name="Settings" focused={focused} />
+            <TabIcon name="Settings" focused={focused} colors={colors} isDark={isDark} />
           ),
         }}
       />

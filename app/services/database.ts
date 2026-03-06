@@ -6,11 +6,19 @@ import { DailySummary, WorkoutSession } from '../types/fitness';
 // For now, using AsyncStorage as fallback until expo-sqlite is available
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+// Active tracking session type
+interface ActiveTrackingSession {
+  startTime: string;
+  steps: number;
+  isTracking: boolean;
+}
+
 class DatabaseService {
   private storageKeys = {
     dailySummaries: '@fitness_daily_summaries',
     workoutSessions: '@fitness_workout_sessions',
-    lastSync: '@fitness_last_sync'
+    lastSync: '@fitness_last_sync',
+    activeSession: '@fitness_active_session'
   };
 
   // Initialize database tables (SQLite will replace this later)
@@ -158,6 +166,54 @@ class DatabaseService {
     } catch (error) {
       console.error('❌ Error clearing cache:', error);
       throw error;
+    }
+  }
+
+  // Save active tracking session
+  async saveActiveSession(session: { startTime: Date; steps: number }): Promise<void> {
+    try {
+      const sessionData: ActiveTrackingSession = {
+        startTime: session.startTime.toISOString(),
+        steps: session.steps,
+        isTracking: true
+      };
+      
+      await AsyncStorage.setItem(
+        this.storageKeys.activeSession,
+        JSON.stringify(sessionData)
+      );
+      console.log(`💾 Saved active tracking session: ${session.steps} steps`);
+    } catch (error) {
+      console.error('❌ Error saving active session:', error);
+    }
+  }
+
+  // Get active tracking session
+  async getActiveSession(): Promise<{ startTime: Date; steps: number } | null> {
+    try {
+      const data = await AsyncStorage.getItem(this.storageKeys.activeSession);
+      if (!data) return null;
+      
+      const session: ActiveTrackingSession = JSON.parse(data);
+      if (!session.isTracking) return null;
+      
+      return {
+        startTime: new Date(session.startTime),
+        steps: session.steps
+      };
+    } catch (error) {
+      console.error('❌ Error getting active session:', error);
+      return null;
+    }
+  }
+
+  // Clear active tracking session
+  async clearActiveSession(): Promise<void> {
+    try {
+      await AsyncStorage.removeItem(this.storageKeys.activeSession);
+      console.log('🧹 Cleared active tracking session');
+    } catch (error) {
+      console.error('❌ Error clearing active session:', error);
     }
   }
 }

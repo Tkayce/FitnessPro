@@ -12,6 +12,9 @@ import { DailySummary, HeartRateData, SleepData, StepData, WorkoutSession } from
 class HealthKitService {
   private isInitialized = false;
   private hasPermissions = false;
+  private isTracking = false;
+  private sessionStartTime: Date | null = null;
+  private sessionSteps = 0;
 
   // Initialize HealthKit connection
   async initialize(): Promise<boolean> {
@@ -94,6 +97,64 @@ class HealthKitService {
       console.error('❌ Error getting steps data from HealthKit:', error);
       return [];
     }
+  }
+
+  // Start tracking session (iOS can read historical data)
+  startTracking(): boolean {
+    if (this.isTracking) {
+      console.log('⚠️ Already tracking steps');
+      return false;
+    }
+
+    if (!this.isInitialized || !this.hasPermissions) {
+      console.log('❌ Cannot start tracking - not initialized');
+      return false;
+    }
+
+    this.isTracking = true;
+    this.sessionStartTime = new Date();
+    this.sessionSteps = 0;
+
+    console.log(`✅ Started step tracking session at ${this.sessionStartTime.toLocaleTimeString()}`);
+    return true;
+  }
+
+  // Stop tracking and get session data
+  async stopTracking(): Promise<{ steps: number; startTime: Date | null; endTime: Date } | null> {
+    if (!this.isTracking || !this.sessionStartTime) {
+      console.log('⚠️ No active tracking session');
+      return null;
+    }
+
+    const endTime = new Date();
+    
+    try {
+      // Query steps for the session period
+      const stepsData = await this.getStepsData(this.sessionStartTime, endTime);
+      this.sessionSteps = stepsData.reduce((sum, data) => sum + data.value, 0);
+    } catch (error) {
+      console.error('❌ Error fetching session steps:', error);
+    }
+
+    const session = {
+      steps: this.sessionSteps,
+      startTime: this.sessionStartTime,
+      endTime
+    };
+
+    this.isTracking = false;
+    console.log(`⏹️ Stopped tracking: ${session.steps} steps from ${session.startTime.toLocaleTimeString()} to ${session.endTime.toLocaleTimeString()}`);
+    
+    return session;
+  }
+
+  // Get current tracking status
+  getTrackingStatus(): { isTracking: boolean; steps: number; startTime: Date | null } {
+    return {
+      isTracking: this.isTracking,
+      steps: this.sessionSteps,
+      startTime: this.sessionStartTime
+    };
   }
 
   // Get heart rate data for a date range
@@ -245,9 +306,12 @@ class HealthKitService {
       const avgHeartRate = heartRateData.length > 0 
         ? heartRateData.reduce((sum, data) => sum + data.value, 0) / heartRateData.length
         : undefined;
-      const totalSleep = sleepData.reduce((sum, data) => sum + data.value, 0);
-      const totalCalories = workouts.reduce((sum, workout) => sum + (workout.calories || 0), 0);
-      const totalDistance = workouts.reduce((sum, workout) => sum + (workout.distance || 0), 0);
+      
+      // Calculate calories from steps (approximately 0.04 calories per step)
+      const totalCalories = Math.round(totalSteps * 0.04);
+      
+      // Calculate distance from steps (approximately 0.0008 km per step)
+      const totalDistance = Math.round(totalSteps * 0.0008 * 100) / 100;
 
       const summary: DailySummary = {
         id: `summary_ios_${date.toISOString().split('T')[0]}`,
@@ -255,7 +319,7 @@ class HealthKitService {
         steps: totalSteps,
         stepsGoal: 10000,
         heartRate: avgHeartRate,
-        sleep: totalSleep,
+        sleep: undefined, // Sleep tracking removed (requires HealthKit)
         sleepGoal: 8,
         calories: totalCalories,
         caloriesGoal: 2000,

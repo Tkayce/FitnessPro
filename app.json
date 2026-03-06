@@ -9,10 +9,6 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "infoPlist": {
-        "NSHealthShareUsageDescription": "FitnessPro needs access to your health data to display your fitness metrics, track your workouts, and provide personalized insights.",
-        "NSHealthUpdateUsageDescription": "FitnessPro needs permission to update your health data."
-      },
       "bundleIdentifier": "com.fitnesspro.app"
     },
     "android": {
@@ -29,10 +25,7 @@
       "compileSdkVersion": 35,
       "targetSdkVersion": 35,
       "permissions": [
-        "android.permission.health.READ_STEPS",
-        "android.permission.health.READ_HEART_RATE",
-        "android.permission.health.READ_SLEEP",
-        "android.permission.health.READ_EXERCISE"
+        "android.permission.ACTIVITY_RECOGNITION"
       ]
     },
     "web": {
@@ -62,14 +55,7 @@
           }
         }
       ],
-      "expo-sqlite",
-      "react-native-health-connect",
-      [
-        "@kingstinct/react-native-healthkit",
-        {
-          "enableBackgroundDelivery": true
-        }
-      ]
+      "expo-sqlite"
     ],
     "experiments": {
       "reactCompiler": true

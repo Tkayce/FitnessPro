@@ -4,6 +4,7 @@
 import React from 'react';
 import { Text, View } from 'react-native';
 import { s } from 'react-native-wind';
+import { useTheme } from '../store/theme';
 
 interface HealthMetricCardProps {
   title: string;
@@ -30,54 +31,53 @@ export const HealthMetricCard: React.FC<HealthMetricCardProps> = ({
   progress,
   color = 'emerald'
 }) => {
-  const colorClasses = {
-    emerald: 'text-emerald-400 bg-emerald-400/10',
-    blue: 'text-blue-400 bg-blue-400/10',
-    purple: 'text-purple-400 bg-purple-400/10',
-    orange: 'text-orange-400 bg-orange-400/10'
+  const { colors, isDark } = useTheme();
+  
+  const accentColors = {
+    emerald: { main: colors.primary, light: colors.primaryLight },
+    blue: { main: colors.blue, light: colors.blueLight },
+    purple: { main: colors.purple, light: colors.purpleLight },
+    orange: { main: colors.orange, light: colors.orangeLight }
   };
-
-  const progressColors = {
-    emerald: '#34d399',
-    blue: '#60a5fa',
-    purple: '#a78bfa',
-    orange: '#fb7185'
-  };
-
+  
+  const accent = accentColors[color];
   const trendIcon = trend?.direction === 'up' ? '↗' : 
                    trend?.direction === 'down' ? '↘' : '→';
 
   return (
-    <View style={s`bg-zinc-900 border border-zinc-800 p-5 rounded-[32px] mb-4`}>
-      <View style={s`flex-row justify-between items-end mb-6`}>
-        <View>
-          <Text style={s`text-zinc-500 text-sm font-medium`}>{title}</Text>
-          <View style={s`flex-row items-end gap-1`}>
-            <Text style={s`text-white text-3xl font-bold`}>{value}</Text>
+    <View style={[s`p-4 rounded-[32px] mb-4`, { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }]}>
+      <View style={s`flex-row justify-between items-start mb-4`}>
+        <View style={s`flex-1 pr-2`}>
+          <Text style={[s`text-sm font-medium`, { color: colors.textTertiary }]} numberOfLines={1}>{title}</Text>
+          <View style={s`flex-row items-end gap-1 mt-1`}>
+            <Text style={[s`text-3xl font-bold`, { color: colors.text }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{value}</Text>
             {unit && (
-              <Text style={s`text-zinc-400 text-sm font-medium mb-1`}>{unit}</Text>
+              <Text style={[s`text-sm font-medium mb-1`, { color: colors.textSecondary }]}>{unit}</Text>
             )}
           </View>
         </View>
         {trend && (
-          <View style={s`flex-row items-center gap-1`}>
-            <Text style={s`text-xs text-zinc-400`}>{trendIcon}</Text>
-            <Text style={s`${colorClasses[color as keyof typeof colorClasses]} text-xs px-2 py-1 rounded-full mb-1`}>
-              +{trend.percentage}% {trend.period}
-            </Text>
+          <View style={s`items-end flex-shrink-0 ml-1`}>
+            <View style={[s`flex-row items-center px-2 py-1 rounded-full`, { backgroundColor: accent.light }]}>
+              <Text style={[s`text-xs`, { color: colors.textSecondary }]}>{trendIcon}</Text>
+              <Text style={[s`text-xs ml-1`, { color: accent.main }]} numberOfLines={1}>
+                +{trend.percentage.toString()}%
+              </Text>
+            </View>
+            <Text style={[s`text-xs mt-1`, { color: colors.textSecondary }]} numberOfLines={1}>{trend.period}</Text>
           </View>
         )}
       </View>
       
       {/* Progress bar */}
       {progress && (
-        <View style={s`h-2 bg-zinc-800 rounded-full overflow-hidden`}>
+        <View style={[s`h-2 rounded-full overflow-hidden`, { backgroundColor: colors.borderLight }]}>
           <View 
             style={[
               s`h-full rounded-full`,
               {
-                backgroundColor: progressColors[color as keyof typeof progressColors],
-                width: `${Math.min(progress.percentage, 100)}%`
+                backgroundColor: accent.main,
+                width: `${Math.min(progress.percentage, 100).toString()}%`
               }
             ]}
           />

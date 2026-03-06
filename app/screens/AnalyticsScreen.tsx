@@ -14,12 +14,14 @@ import { s } from 'react-native-wind';
 import { HealthMetricCard } from '../components/HealthMetricCard';
 import { TrendChart } from '../components/TrendChart';
 import { useFitnessSelectors, useFitnessStore } from '../store/fitness';
+import { useTheme } from '../store/theme';
 import { ChartDataPoint } from '../types/fitness';
 
 type TimePeriod = 'week' | 'month' | 'year';
 
 export default function AnalyticsScreen() {
   const [selectedPeriod, setSelectedPeriod] = useState<TimePeriod>('week');
+  const { colors, isDark } = useTheme();
   
   const {
     dailySummaries,
@@ -56,18 +58,17 @@ export default function AnalyticsScreen() {
     
     const recentData = dailySummaries.slice(0, 7);
     const avgSteps = Math.round(recentData.reduce((sum, d) => sum + d.steps, 0) / recentData.length);
-    const avgSleep = (recentData.reduce((sum, d) => sum + (d.sleep || 0), 0) / recentData.length).toFixed(1);
     const avgCalories = Math.round(recentData.reduce((sum, d) => sum + (d.calories || 0), 0) / recentData.length);
     
-    return { avgSteps, avgSleep, avgCalories };
+    return { avgSteps, avgCalories };
   };
 
   const averages = calculateAverages();
   const currentPeriodData = getChartDataForPeriod(selectedPeriod);
 
   return (
-    <View style={s`flex-1 bg-zinc-950`}>
-      <StatusBar barStyle="light-content" backgroundColor="#09090b" />
+    <View style={[s`flex-1`, { backgroundColor: colors.background }]}>
+      <StatusBar barStyle={isDark ? "light-content" : "dark-content"} backgroundColor={colors.background} />
       
       <ScrollView
         style={s`flex-1`}
@@ -76,24 +77,28 @@ export default function AnalyticsScreen() {
       >
         {/* Header */}
         <View style={s`px-6 pt-12 pb-6`}>
-          <Text style={s`text-white text-2xl font-bold mb-2`}>Analytics</Text>
-          <Text style={s`text-zinc-400 text-sm`}>
+          <Text style={[s`text-2xl font-bold mb-2`, { color: colors.text }]}>Analytics</Text>
+          <Text style={[s`text-sm`, { color: colors.textSecondary }]}>
             Detailed insights into your fitness journey
           </Text>
         </View>
 
         {/* Time period selector */}
         <View style={s`px-6 mb-6`}>
-          <View style={s`flex-row bg-zinc-900 p-1 rounded-2xl`}>
+          <View style={[s`flex-row p-1 rounded-2xl`, { backgroundColor: colors.surface }]}>
             {(['week', 'month', 'year'] as TimePeriod[]).map((period) => (
               <Pressable
                 key={period}
-                style={s`flex-1 py-3 px-4 rounded-xl ${selectedPeriod === period ? 'bg-emerald-400' : ''}`}
+                style={[
+                  s`flex-1 py-3 px-4 rounded-xl`,
+                  selectedPeriod === period && { backgroundColor: colors.primary }
+                ]}
                 onPress={() => setSelectedPeriod(period)}
               >
-                <Text style={s`text-center font-medium capitalize ${
-                  selectedPeriod === period ? 'text-zinc-900' : 'text-zinc-400'
-                }`}>
+                <Text style={[
+                  s`text-center font-medium capitalize`,
+                  { color: selectedPeriod === period ? (isDark ? colors.background : '#ffffff') : colors.textSecondary }
+                ]}>
                   {period}
                 </Text>
               </Pressable>
@@ -104,16 +109,16 @@ export default function AnalyticsScreen() {
         {/* Empty state */}
         {dailySummaries.length === 0 ? (
           <View style={s`flex-1 items-center justify-center px-6 py-20`}>
-            <View style={s`items-center bg-zinc-900 border border-zinc-800 p-8 rounded-[32px]`}>
-              <View style={s`bg-zinc-800 w-20 h-20 rounded-full items-center justify-center mb-4`}>
-                <Ionicons name="analytics-outline" size={40} color="#71717a" />
+            <View style={[s`items-center p-8 rounded-[32px]`, { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }]}>
+              <View style={[s`w-20 h-20 rounded-full items-center justify-center mb-4`, { backgroundColor: colors.surface }]}>
+                <Ionicons name="analytics-outline" size={40} color={colors.textTertiary} />
               </View>
-              <Text style={s`text-white text-xl font-semibold mb-2`}>No Analytics Data</Text>
-              <Text style={s`text-zinc-400 text-center text-sm mb-4`}>
+              <Text style={[s`text-xl font-semibold mb-2`, { color: colors.text }]}>No Analytics Data</Text>
+              <Text style={[s`text-center text-sm mb-4`, { color: colors.textSecondary }]}>
                 Start tracking your fitness activities to see detailed analytics and insights
               </Text>
-              <View style={s`bg-zinc-800 px-4 py-2 rounded-full`}>
-                <Text style={s`text-emerald-400 text-xs font-medium`}>Sync your health data to get started</Text>
+              <View style={[s`px-4 py-2 rounded-full`, { backgroundColor: colors.primaryLight }]}>
+                <Text style={[s`text-xs font-medium`, { color: colors.primary }]}>Sync your health data to get started</Text>
               </View>
             </View>
           </View>
@@ -122,7 +127,7 @@ export default function AnalyticsScreen() {
           {/* Weekly summary cards */}
           {weeklyAnalytics && (
             <View style={s`mb-6`}>
-              <Text style={s`text-white text-lg font-semibold mb-4`}>Weekly Summary</Text>
+              <Text style={[s`text-lg font-semibold mb-4`, { color: colors.text }]}>Weekly Summary</Text>
               
               <View style={s`flex-row gap-3 mb-4`}>
                 <View style={s`flex-1`}>
@@ -139,45 +144,45 @@ export default function AnalyticsScreen() {
                 </View>
                 <View style={s`flex-1`}>
                   <HealthMetricCard
-                    title="Avg Sleep"
-                    value={weeklyAnalytics.avgSleep.toString()}
-                    unit="hrs"
+                    title="Avg Calories"
+                    value={Math.round(weeklyAnalytics.avgSteps * 0.04).toString()}
+                    unit="cal"
                     trend={{
                       direction: 'up',
-                      percentage: 12,
+                      percentage: 8,
                       period: 'vs last week'
                     }}
-                    color="blue"
+                    color="orange"
                   />
                 </View>
               </View>
 
-              <View style={s`bg-zinc-900 border border-zinc-800 p-5 rounded-[32px] mb-4`}>
-                <Text style={s`text-white font-semibold mb-3`}>Week Highlights</Text>
+              <View style={[s`p-5 rounded-[32px] mb-4`, { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }]}>
+                <Text style={[s`font-semibold mb-3`, { color: colors.text }]}>Week Highlights</Text>
                 
                 <View style={s`flex-row justify-between mb-3`}>
                   <View style={s`flex-1`}>
-                    <Text style={s`text-zinc-500 text-sm`}>Total Distance</Text>
-                    <Text style={s`text-white font-medium`}>{weeklyAnalytics.totalDistance} km</Text>
+                    <Text style={[s`text-sm`, { color: colors.textTertiary }]}>Total Distance</Text>
+                    <Text style={[s`font-medium`, { color: colors.text }]}>{`${weeklyAnalytics.totalDistance} km`}</Text>
                   </View>
                   <View style={s`flex-1 items-center`}>
-                    <Text style={s`text-zinc-500 text-sm`}>Workouts</Text>
-                    <Text style={s`text-white font-medium`}>{weeklyAnalytics.workoutCount}</Text>
+                    <Text style={[s`text-sm`, { color: colors.textTertiary }]}>Workouts</Text>
+                    <Text style={[s`font-medium`, { color: colors.text }]}>{weeklyAnalytics.workoutCount.toString()}</Text>
                   </View>
                   <View style={s`flex-1 items-end`}>
-                    <Text style={s`text-zinc-500 text-sm`}>Goals Hit</Text>
-                    <Text style={s`text-emerald-400 font-medium`}>{weeklyAnalytics.goalsAchieved}/7</Text>
+                    <Text style={[s`text-sm`, { color: colors.textTertiary }]}>Goals Hit</Text>
+                    <Text style={[s`font-medium`, { color: colors.primary }]}>{weeklyAnalytics.goalsAchieved}/7</Text>
                   </View>
                 </View>
                 
                 <View style={s`flex-row justify-between`}>
                   <View style={s`flex-1`}>
-                    <Text style={s`text-zinc-500 text-sm`}>Current Streak</Text>
-                    <Text style={s`text-emerald-400 font-medium`}>{weeklyAnalytics.streakDays} days</Text>
+                    <Text style={[s`text-sm`, { color: colors.textTertiary }]}>Current Streak</Text>
+                    <Text style={[s`font-medium`, { color: colors.primary }]}>{weeklyAnalytics.streakDays} days</Text>
                   </View>
                   <View style={s`flex-1 items-end`}>
-                    <Text style={s`text-zinc-500 text-sm`}>Most Active</Text>
-                    <Text style={s`text-white font-medium`}>
+                    <Text style={[s`text-sm`, { color: colors.textTertiary }]}>Most Active</Text>
+                    <Text style={[s`font-medium`, { color: colors.text }]}>
                       {new Date(weeklyAnalytics.mostActiveDay).toLocaleDateString('en', { weekday: 'short' })}
                     </Text>
                   </View>
@@ -194,21 +199,7 @@ export default function AnalyticsScreen() {
             unit="steps"
           />
 
-          {/* Sleep trend chart */}
-          {dailySummaries.length > 0 && (
-            <TrendChart
-              title="Sleep Pattern"
-              data={dailySummaries.slice(0, 7).reverse().map(summary => ({
-                label: new Date(summary.date).toLocaleDateString('en', { weekday: 'short' }),
-                value: summary.sleep || 0,
-                date: summary.date
-              }))}
-              color="blue"
-              unit="hrs"
-            />
-          )}
-
-          {/* Calories trend chart */}
+          {/* Calories trend chart (calculated from steps) */}
           {dailySummaries.length > 0 && (
             <TrendChart
               title="Calorie Burn"
@@ -224,32 +215,32 @@ export default function AnalyticsScreen() {
 
           {/* Monthly comparison */}
           {averages && (
-            <View style={s`bg-zinc-900 border border-zinc-800 p-5 rounded-[32px] mb-4`}>
-              <Text style={s`text-white text-lg font-semibold mb-4`}>Performance Insights</Text>
+            <View style={[s`p-5 rounded-[32px] mb-4`, { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }]}>
+              <Text style={[s`text-lg font-semibold mb-4`, { color: colors.text }]}>Performance Insights</Text>
               
               <View style={s`mb-4`}>
-                <Text style={s`text-emerald-400 text-sm font-medium mb-1`}>🎯 Daily Averages (Last 7 Days)</Text>
-                <Text style={s`text-zinc-400 text-xs mb-3`}>Your consistency over the past week</Text>
+                <Text style={[s`text-sm font-medium mb-1`, { color: colors.primary }]}>🎯 Daily Averages (Last 7 Days)</Text>
+                <Text style={[s`text-xs mb-3`, { color: colors.textSecondary }]}>Your consistency over the past week</Text>
                 
                 <View style={s`flex-row justify-between`}>
                   <View>
-                    <Text style={s`text-zinc-500 text-sm`}>Steps</Text>
-                    <Text style={s`text-white font-semibold`}>{averages.avgSteps.toLocaleString()}</Text>
+                    <Text style={[s`text-sm`, { color: colors.textTertiary }]}>Steps</Text>
+                    <Text style={[s`font-semibold`, { color: colors.text }]}>{averages.avgSteps.toLocaleString()}</Text>
                   </View>
                   <View style={s`items-center`}>
-                    <Text style={s`text-zinc-500 text-sm`}>Sleep</Text>
-                    <Text style={s`text-white font-semibold`}>{averages.avgSleep} hrs</Text>
+                    <Text style={[s`text-sm`, { color: colors.textTertiary }]}>Distance</Text>
+                    <Text style={[s`font-semibold`, { color: colors.text }]}>{`${(averages.avgSteps * 0.0008).toFixed(1)} km`}</Text>
                   </View>
                   <View style={s`items-end`}>
-                    <Text style={s`text-zinc-500 text-sm`}>Calories</Text>
-                    <Text style={s`text-white font-semibold`}>{averages.avgCalories}</Text>
+                    <Text style={[s`text-sm`, { color: colors.textTertiary }]}>Calories</Text>
+                    <Text style={[s`font-semibold`, { color: colors.text }]}>{averages.avgCalories}</Text>
                   </View>
                 </View>
               </View>
               
-              <View style={s`border-t border-zinc-700 pt-4`}>
-                <Text style={s`text-blue-400 text-sm font-medium mb-1`}>📈 Improvement Tips</Text>
-                <Text style={s`text-zinc-400 text-xs`}>
+              <View style={[s`pt-4`, { borderTopWidth: 1, borderTopColor: colors.border }]}>
+                <Text style={[s`text-sm font-medium mb-1`, { color: colors.blue }]}>📈 Improvement Tips</Text>
+                <Text style={[s`text-xs`, { color: colors.textSecondary }]}>
                   {averages.avgSteps < 8000 
                     ? "Try to increase daily steps by 1,000 to reach your goal faster."
                     : "Great job! You're consistently hitting your step goals."}

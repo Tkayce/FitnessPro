@@ -19,9 +19,12 @@ import { HealthMetricCard } from '../components/HealthMetricCard';
 import { MetricRing } from '../components/MetricRing';
 import { TrendChart } from '../components/TrendChart';
 import { useFitnessSelectors, useFitnessStore } from '../store/fitness';
+import { useTheme } from '../store/theme';
 import { WorkoutSession } from '../types/fitness';
 
 export default function DashboardScreen() {
+  const { colors, isDark } = useTheme();
+  
   // Zustand store hooks
   const {
     initializeApp,
@@ -33,13 +36,19 @@ export default function DashboardScreen() {
     permissions,
     isLoading,
     todaySummary,
-    workoutSessions
+    workoutSessions,
+    isTrackingSteps,
+    sessionSteps,
+    sessionStartTime,
+    startStepTracking,
+    stopStepTracking,
+    updateSessionSteps
   } = useFitnessStore();
 
   // Computed selectors
   const {
     stepsProgress,
-    sleepProgress,
+    distanceProgress,
     caloriesProgress,
     chartData,
     recentWorkouts,
@@ -51,6 +60,17 @@ export default function DashboardScreen() {
   useEffect(() => {
     initializeApp();
   }, []);
+
+  // Update session steps periodically when tracking
+  useEffect(() => {
+    if (!isTrackingSteps) return;
+    
+    const interval = setInterval(() => {
+      updateSessionSteps();
+    }, 1000); // Update every second
+    
+    return () => clearInterval(interval);
+  }, [isTrackingSteps, updateSessionSteps]);
 
   // Handle pull to refresh
   const handleRefresh = useCallback(async () => {
@@ -84,6 +104,42 @@ export default function DashboardScreen() {
     console.log('Workout pressed:', workout.type, workout.id);
   }, []);
 
+  // Handle start tracking
+  const handleStartTracking = useCallback(async () => {
+    if (!permissions.steps) {
+      const granted = await requestPermissions();
+      if (!granted) {
+        Alert.alert(
+          'Permissions Required',
+          'Please grant step tracking permissions to start tracking.',
+          [{ text: 'OK' }]
+        );
+        return;
+      }
+    }
+    
+    const started = startStepTracking();
+    if (!started) {
+      Alert.alert('Error', 'Failed to start step tracking. Please try again.');
+    }
+  }, [permissions, requestPermissions, startStepTracking]);
+
+  // Handle stop tracking
+  const handleStopTracking = useCallback(async () => {
+    const finalSteps = sessionSteps; // Capture before stopping
+    await stopStepTracking();
+    Alert.alert(
+      'Session Ended',
+      `You walked ${finalSteps.toLocaleString()} steps in this session!`,
+      [
+        {
+          text: 'OK',
+          onPress: () => loadTodaysSummary()
+        }
+      ]
+    );
+  }, [stopStepTracking, sessionSteps, loadTodaysSummary]);
+
   // Get greeting based on time
   const getGreeting = () => {
     const hour = new Date().getHours();
@@ -100,8 +156,8 @@ export default function DashboardScreen() {
   });
 
   return (
-    <View style={s`flex-1 bg-zinc-950`}>
-      <StatusBar barStyle="light-content" backgroundColor="#09090b" />
+    <View style={[s`flex-1`, { backgroundColor: colors.background }]}>
+      <StatusBar barStyle={isDark ? "light-content" : "dark-content"} backgroundColor={colors.background} />
       
       <ScrollView
         style={s`flex-1`}
@@ -111,15 +167,15 @@ export default function DashboardScreen() {
           <RefreshControl
             refreshing={syncStatus.isSyncing}
             onRefresh={handleRefresh}
-            tintColor="#34d399" // emerald-400
-            colors={['#34d399']}
-            progressBackgroundColor="#18181b" // zinc-900
+            tintColor={colors.primary}
+            colors={[colors.primary]}
+            progressBackgroundColor={colors.surface}
           />
         }
       >
         {/* Enhanced Header with Gradient */}
         <LinearGradient
-          colors={['#0c0c0c', '#18181b', '#09090b']}
+          colors={isDark ? ['#0c0c0c', '#18181b', '#09090b'] : ['#f5f5f5', '#ffffff', '#fafafa']}
           style={{
             paddingHorizontal: 24,
             paddingTop: 48,
@@ -130,21 +186,16 @@ export default function DashboardScreen() {
         >
           <View style={s`flex-row justify-between items-start mb-4`}>
             <View style={s`flex-1`}>
-              <Text style={s`text-zinc-400 text-sm font-medium tracking-wide`}>
+              <Text style={[s`text-sm font-medium tracking-wide`, { color: colors.textSecondary }]}>
                 {getGreeting()}
               </Text>
-              <Text style={s`text-white text-3xl font-bold mt-2 tracking-tight`}>
+              <Text style={[s`text-3xl font-bold mt-2 tracking-tight`, { color: colors.text }]}>
                 FitnessPro
               </Text>
-              <Text style={s`text-zinc-500 text-sm mt-1`}>{todayDate}</Text>
+              <Text style={[s`text-sm mt-1`, { color: colors.textTertiary }]}>{todayDate}</Text>
             </View>
             
             {/* Profile/Settings icon */}
-            <Pressable 
-              style={s`w-10 h-10 bg-zinc-800/50 rounded-full items-center justify-center`}
-            >
-              <Ionicons name="person-circle-outline" size={20} color="#71717a" />
-            </Pressable>
           </View>
           
           {/* Enhanced sync status */}
@@ -154,25 +205,25 @@ export default function DashboardScreen() {
                 width: 8,
                 height: 8,
                 borderRadius: 4,
-                backgroundColor: needsSync ? '#f59e0b' : '#34d399',
+                backgroundColor: needsSync ? colors.warning : colors.success,
                 marginRight: 8
               }} />
-              <Text style={s`text-zinc-400 text-xs font-medium`}>{syncStatusText}</Text>
+              <Text style={[s`text-xs font-medium`, { color: colors.textSecondary }]}>{syncStatusText}</Text>
             </View>
             
             {needsSync && (
               <Pressable 
                 onPress={handleRefresh}
                 style={{
-                  backgroundColor: 'rgba(52, 211, 153, 0.15)',
+                  backgroundColor: colors.primaryLight,
                   paddingHorizontal: 12,
                   paddingVertical: 6,
                   borderRadius: 16,
                   borderWidth: 1,
-                  borderColor: 'rgba(52, 211, 153, 0.3)'
+                  borderColor: colors.primary + '4D'
                 }}
               >
-                <Text style={s`text-emerald-400 text-xs font-semibold`}>Sync Now</Text>
+                <Text style={[s`text-xs font-semibold`, { color: colors.primary }]}>Sync Now</Text>
               </Pressable>
             )}
           </View>
@@ -180,10 +231,81 @@ export default function DashboardScreen() {
 
         {/* Main content with enhanced spacing */}
         <View style={s`px-6 mt-6`}>
+          {/* Live Step Tracking Card */}
+          <View style={[s`mb-6 rounded-3xl p-6`, { backgroundColor: colors.card, borderWidth: 1, borderColor: isTrackingSteps ? colors.success : colors.border }]}>
+            <View style={s`flex-row items-center justify-between mb-4`}>
+              <View style={s`flex-row items-center`}>
+                <View style={{
+                  width: 12,
+                  height: 12,
+                  borderRadius: 6,
+                  backgroundColor: isTrackingSteps ? colors.success : colors.textTertiary,
+                  marginRight: 8
+                }} />
+                <Text style={[s`text-sm font-semibold tracking-wide`, { color: colors.textSecondary }]}>
+                  {isTrackingSteps ? 'TRACKING SESSION' : 'STEP TRACKER'}
+                </Text>
+              </View>
+              {isTrackingSteps && sessionStartTime && (
+                <Text style={[s`text-xs`, { color: colors.textTertiary }]}>
+                  Started {sessionStartTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                </Text>
+              )}
+            </View>
+            
+            {isTrackingSteps ? (
+              <View>
+                <View style={s`flex-row items-baseline mb-6`}>
+                  <Text style={[s`text-5xl font-bold`, { color: colors.success }]}>
+                    {(sessionSteps || 0).toLocaleString()}
+                  </Text>
+                  <Text style={[s`text-lg ml-2`, { color: colors.textSecondary }]}>steps</Text>
+                </View>
+                
+                <View style={s`flex-row gap-3 mb-4`}>
+                  <View style={[s`flex-1 p-3 rounded-2xl`, { backgroundColor: colors.background }]}>
+                    <Text style={[s`text-xs`, { color: colors.textTertiary }]}>Distance</Text>
+                    <Text style={[s`text-lg font-semibold`, { color: colors.text }]}>
+                      {`${((sessionSteps || 0) * 0.0008).toFixed(2)} km`}
+                    </Text>
+                  </View>
+                  <View style={[s`flex-1 p-3 rounded-2xl`, { backgroundColor: colors.background }]}>
+                    <Text style={[s`text-xs`, { color: colors.textTertiary }]}>Calories</Text>
+                    <Text style={[s`text-lg font-semibold`, { color: colors.text }]}>
+                      {Math.round((sessionSteps || 0) * 0.04).toString()}
+                    </Text>
+                  </View>
+                </View>
+                
+                <Pressable
+                  onPress={handleStopTracking}
+                  style={[s`py-4 rounded-2xl flex-row items-center justify-center`, { backgroundColor: colors.error }]}
+                >
+                  <Ionicons name="stop-circle" size={24} color="#ffffff" style={s`mr-2`} />
+                  <Text style={[s`font-bold text-base`, { color: '#ffffff' }]}>Stop Tracking</Text>
+                </Pressable>
+              </View>
+            ) : (
+              <View>
+                <Text style={[s`text-sm mb-6`, { color: colors.textSecondary }]}>
+                  Start a tracking session to count your steps in real-time. Perfect for walks, runs, or daily activities!
+                </Text>
+                
+                <Pressable
+                  onPress={handleStartTracking}
+                  style={[s`py-4 rounded-2xl flex-row items-center justify-center`, { backgroundColor: colors.primary }]}
+                >
+                  <Ionicons name="play-circle" size={24} color={isDark ? colors.background : '#ffffff'} style={s`mr-2`} />
+                  <Text style={[s`font-bold text-base`, { color: isDark ? colors.background : '#ffffff' }]}>Start Tracking</Text>
+                </Pressable>
+              </View>
+            )}
+          </View>
+
           {/* Steps Ring - Hero metric with enhanced styling */}
           {stepsProgress && (
-            <View style={s`mb-8 bg-zinc-900/30 rounded-3xl p-6 border border-zinc-800/50`}>
-              <Text style={s`text-zinc-400 text-sm font-semibold mb-4 tracking-wide`}>
+            <View style={[s`mb-8 rounded-3xl p-6`, { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }]}>
+              <Text style={[s`text-sm font-semibold mb-4 tracking-wide`, { color: colors.textSecondary }]}>
                 TODAY'S PROGRESS
               </Text>
               <MetricRing
@@ -197,24 +319,24 @@ export default function DashboardScreen() {
 
           {/* Health metrics section header */}
           <View style={s`flex-row items-center justify-between mb-4`}>
-            <Text style={s`text-white text-lg font-bold`}>Health Metrics</Text>
-            <Ionicons name="chevron-forward" size={16} color="#71717a" />
+            <Text style={[s`text-lg font-bold`, { color: colors.text }]}>Health Metrics</Text>
+            <Ionicons name="chevron-forward" size={16} color={colors.textTertiary} />
           </View>
 
           {/* Health metric cards row with enhanced styling */}
           <View style={s`flex-row gap-4 mb-6`}>
-            {sleepProgress && (
+            {distanceProgress && (
               <View style={s`flex-1`}>
                 <HealthMetricCard
-                  title="Sleep"
-                  value={sleepProgress.current.toFixed(1)}
-                  unit="hrs"
+                  title="Distance"
+                  value={distanceProgress.current.toFixed(1)}
+                  unit="km"
                   trend={{
-                    direction: sleepProgress.trend,
-                    percentage: sleepProgress.trendPercentage,
-                    period: 'last night'
+                    direction: distanceProgress.trend,
+                    percentage: distanceProgress.trendPercentage,
+                    period: 'today'
                   }}
-                  progress={sleepProgress}
+                  progress={distanceProgress}
                   color="blue"
                 />
               </View>
@@ -273,37 +395,37 @@ export default function DashboardScreen() {
 
           {/* Quick Stats Summary */}
           {todaySummary && (
-            <View style={s`bg-zinc-900 border border-zinc-800 p-5 rounded-[32px] mb-4`}>
-              <Text style={s`text-white text-lg font-semibold mb-4`}>Today's Summary</Text>
+            <View style={[s`p-5 rounded-[32px] mb-4`, { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }]}>
+              <Text style={[s`text-lg font-semibold mb-4`, { color: colors.text }]}>Today's Summary</Text>
               
               <View style={s`flex-row justify-between mb-3`}>
                 <View style={s`flex-1`}>
-                  <Text style={s`text-zinc-500 text-sm`}>Steps Goal</Text>
-                  <Text style={s`text-white font-semibold`}>
+                  <Text style={[s`text-sm`, { color: colors.textTertiary }]}>Steps Goal</Text>
+                  <Text style={[s`font-semibold`, { color: colors.text }]}>
                     {todaySummary.steps.toLocaleString()} / {todaySummary.stepsGoal.toLocaleString()}
                   </Text>
                 </View>
                 <View style={s`flex-1 items-end`}>
-                  <Text style={s`text-zinc-500 text-sm`}>Distance</Text>
-                  <Text style={s`text-white font-semibold`}>
-                    {(todaySummary.distance || 0).toFixed(1)} km
+                  <Text style={[s`text-sm`, { color: colors.textTertiary }]}>Distance</Text>
+                  <Text style={[s`font-semibold`, { color: colors.text }]}>
+                    {`${(todaySummary.distance || 0).toFixed(1)} km`}
                   </Text>
                 </View>
               </View>
               
               <View style={s`flex-row justify-between`}>
                 <View style={s`flex-1`}>
-                  <Text style={s`text-zinc-500 text-sm`}>Calories</Text>
-                  <Text style={s`text-white font-semibold`}>
+                  <Text style={[s`text-sm`, { color: colors.textTertiary }]}>Calories</Text>
+                  <Text style={[s`font-semibold`, { color: colors.text }]}>
                     {Math.round(todaySummary.calories || 0).toLocaleString()}
                   </Text>
                 </View>
                 <View style={s`flex-1 items-end`}>
-                  <Text style={s`text-zinc-500 text-sm`}>Workouts</Text>
-                  <Text style={s`text-white font-semibold`}>
+                  <Text style={[s`text-sm`, { color: colors.textTertiary }]}>Workouts</Text>
+                  <Text style={[s`font-semibold`, { color: colors.text }]}>
                     {workoutSessions.filter(w => 
                       w.startTime.toDateString() === new Date().toDateString()
-                    ).length}
+                    ).length.toString()}
                   </Text>
                 </View>
               </View>
@@ -312,19 +434,19 @@ export default function DashboardScreen() {
 
           {/* Welcome message for new users */}
           {!todaySummary && !isLoading && (
-            <View style={s`bg-zinc-900 border border-zinc-800 p-6 rounded-[32px] items-center`}>
+            <View style={[s`p-6 rounded-[32px] items-center`, { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }]}>
               <Text style={s`text-4xl mb-3`}>🏃‍♂️</Text>
-              <Text style={s`text-white text-lg font-semibold text-center mb-2`}>
+              <Text style={[s`text-lg font-semibold text-center mb-2`, { color: colors.text }]}>
                 Welcome to FitnessPro!
               </Text>
-              <Text style={s`text-zinc-400 text-center text-sm mb-4`}>
+              <Text style={[s`text-center text-sm mb-4`, { color: colors.textSecondary }]}>
                 Pull down to sync your health data and start tracking your fitness journey.
               </Text>
               <Pressable 
                 onPress={handleRefresh}
-                style={s`bg-emerald-400 px-6 py-3 rounded-2xl`}
+                style={[s`px-6 py-3 rounded-2xl`, { backgroundColor: colors.primary }]}
               >
-                <Text style={s`text-zinc-900 font-semibold`}>Get Started</Text>
+                <Text style={[s`font-semibold`, { color: isDark ? colors.background : '#ffffff' }]}>Get Started</Text>
               </Pressable>
             </View>
           )}

@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import { s } from 'react-native-wind';
 import { useFitnessStore } from '../store/fitness';
+import { useTheme, useThemeStore } from '../store/theme';
 
 export default function SettingsScreen() {
   const {
@@ -24,17 +25,20 @@ export default function SettingsScreen() {
     clearCache
   } = useFitnessStore();
   
+  const { colors, isDark } = useTheme();
+  const { toggleTheme, colorScheme } = useThemeStore();
+  
   const [autoSync, setAutoSync] = useState(true);
   const [notifications, setNotifications] = useState(true);
 
   const handleRequestPermissions = async () => {
     const granted = await requestPermissions();
     if (granted) {
-      Alert.alert('Success', 'Health data permissions granted successfully!');
+      Alert.alert('Success', 'Step tracking permissions granted successfully!');
     } else {
       Alert.alert(
         'Permission Required',
-        `Please enable health data access in your device settings to sync fitness data. Go to Settings > Health${Platform.OS === 'android' ? ' Connect' : 'Kit'} > FitnessPro.`
+        `Please enable activity recognition in your device settings to track steps. Go to Settings > Apps > FitnessPro > Permissions.`
       );
     }
   };
@@ -58,8 +62,13 @@ export default function SettingsScreen() {
           text: 'Clear',
           style: 'destructive',
           onPress: async () => {
-            await clearCache();
-            Alert.alert('Data Cleared', 'All cached data has been removed.');
+            try {
+              await clearCache();
+              Alert.alert('Data Cleared', 'All cached data has been removed.');
+            } catch (error) {
+              console.error('Error clearing cache:', error);
+              Alert.alert('Error', 'Failed to clear cache. Please try again.');
+            }
           }
         }
       ]
@@ -77,17 +86,17 @@ export default function SettingsScreen() {
   }> = ({ title, description, value, onValueChange, onPress, accessory, color = 'default' }) => {
     return (
       <Pressable
-        style={s`bg-zinc-800/50 border border-zinc-700 rounded-2xl p-4 mb-3`}
+        style={[s`p-4 mb-3 rounded-2xl`, { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }]}
         onPress={onPress}
         disabled={!onPress}
       >
         <View style={s`flex-row items-center justify-between`}>
           <View style={s`flex-1 mr-3`}>
-            <Text style={s`font-semibold ${color === 'destructive' ? 'text-red-400' : 'text-white'}`}>
+            <Text style={[s`font-semibold`, { color: color === 'destructive' ? colors.error : colors.text }]}>
               {title}
             </Text>
             {description && (
-              <Text style={s`text-zinc-400 text-sm mt-1`}>{description}</Text>
+              <Text style={[s`text-sm mt-1`, { color: colors.textSecondary }]}>{description}</Text>
             )}
           </View>
           
@@ -95,17 +104,17 @@ export default function SettingsScreen() {
             <Switch
               value={value}
               onValueChange={onValueChange}
-              trackColor={{ false: '#27272a', true: '#34d399' }}
-              thumbColor={value ? '#ffffff' : '#71717a'}
+              trackColor={{ false: colors.borderLight, true: colors.primary }}
+              thumbColor={value ? '#ffffff' : colors.textTertiary}
             />
           )}
           
           {accessory && (
-            <Text style={s`text-zinc-400 text-sm`}>{accessory}</Text>
+            <Text style={[s`text-sm`, { color: colors.textSecondary }]}>{accessory}</Text>
           )}
           
           {onPress && !onValueChange && (
-            <Text style={s`text-emerald-400 text-sm font-medium`}>›</Text>
+            <Text style={[s`text-sm font-medium`, { color: colors.primary }]}>›</Text>
           )}
         </View>
       </Pressable>
@@ -118,7 +127,7 @@ export default function SettingsScreen() {
     
     if (grantedCount === 0) return 'No permissions granted';
     if (grantedCount === totalCount) return 'All permissions granted';
-    return `${grantedCount}/${totalCount} permissions granted`;
+    return `${grantedCount.toString()}/${totalCount.toString()} permissions granted`;
   };
 
   const getLastSyncText = (): string => {
@@ -130,19 +139,19 @@ export default function SettingsScreen() {
     const diffMinutes = Math.floor(diffMs / (1000 * 60));
     
     if (diffHours >= 24) {
-      return `${Math.floor(diffHours / 24)} days ago`;
+      return `${Math.floor(diffHours / 24).toString()} days ago`;
     } else if (diffHours >= 1) {
-      return `${diffHours} hours ago`;
+      return `${diffHours.toString()} hours ago`;
     } else if (diffMinutes >= 1) {
-      return `${diffMinutes} minutes ago`;
+      return `${diffMinutes.toString()} minutes ago`;
     } else {
       return 'Just now';
     }
   };
 
   return (
-    <View style={s`flex-1 bg-zinc-950`}>
-      <StatusBar barStyle="light-content" backgroundColor="#09090b" />
+    <View style={[s`flex-1`, { backgroundColor: colors.background }]}>
+      <StatusBar barStyle={isDark ? "light-content" : "dark-content"} backgroundColor={colors.background} />
       
       <ScrollView
         style={s`flex-1`}
@@ -151,16 +160,28 @@ export default function SettingsScreen() {
       >
         {/* Header */}
         <View style={s`px-6 pt-12 pb-6`}>
-          <Text style={s`text-white text-2xl font-bold mb-2`}>Settings</Text>
-          <Text style={s`text-zinc-400 text-sm`}>
+          <Text style={[s`text-2xl font-bold mb-2`, { color: colors.text }]}>Settings</Text>
+          <Text style={[s`text-sm`, { color: colors.textSecondary }]}>
             Manage permissions, sync, and app preferences
           </Text>
         </View>
 
         <View style={s`px-6`}>
+          {/* Appearance Section */}
+          <View style={s`mb-6`}>
+            <Text style={[s`text-lg font-semibold mb-4`, { color: colors.text }]}>Appearance</Text>
+            
+            <SettingItem
+              title="Dark Mode"
+              description={`Currently using ${colorScheme === 'dark' ? 'dark' : 'light'} theme`}
+              value={isDark}
+              onValueChange={toggleTheme}
+            />
+          </View>
+
           {/* Health Data Section */}
           <View style={s`mb-6`}>
-            <Text style={s`text-white text-lg font-semibold mb-4`}>Health Data</Text>
+            <Text style={[s`text-lg font-semibold mb-4`, { color: colors.text }]}>Health Data</Text>
             
             <SettingItem
               title="Health Permissions"
@@ -184,7 +205,7 @@ export default function SettingsScreen() {
 
           {/* App Preferences Section */}
           <View style={s`mb-6`}>
-            <Text style={s`text-white text-lg font-semibold mb-4`}>Preferences</Text>
+            <Text style={[s`text-lg font-semibold mb-4`, { color: colors.text }]}>Preferences</Text>
             
             <SettingItem
               title="Push Notifications"
@@ -195,15 +216,15 @@ export default function SettingsScreen() {
             
             {/* Platform specific info */}
             <SettingItem
-              title={`Health ${Platform.OS === 'android' ? 'Connect' : 'Kit'} Integration`}
-              description={`Connected to ${Platform.OS === 'android' ? 'Google Health Connect' : 'Apple HealthKit'}`}
+              title={`Health ${Platform.OS === 'android' ? 'Sensors' : 'Sensors'} Integration`}
+              description={`Using Expo Pedometer for step tracking`}
               accessory={permissions.steps ? '✓ Active' : '⚠ Inactive'}
             />
           </View>
 
           {/* Data Management Section */}
           <View style={s`mb-6`}>
-            <Text style={s`text-white text-lg font-semibold mb-4`}>Data Management</Text>
+            <Text style={[s`text-lg font-semibold mb-4`, { color: colors.text }]}>Data Management</Text>
             
             <SettingItem
               title="Clear Cache"
@@ -214,24 +235,27 @@ export default function SettingsScreen() {
           </View>
 
           {/* App Info Section */}
-          <View style={s`bg-zinc-900 border border-zinc-800 p-5 rounded-[32px] mb-4`}>
-            <Text style={s`text-white text-lg font-semibold mb-4`}>About FitnessPro</Text>
+          <View style={[s`p-5 rounded-[32px] mb-4`, { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }]}>
+            <Text style={[s`text-lg font-semibold mb-4`, { color: colors.text }]}>About FitnessPro</Text>
             
             <View style={s`mb-3`}>
-              <Text style={s`text-zinc-500 text-sm`}>Version</Text>
-              <Text style={s`text-white font-medium`}>1.0.0</Text>
+              <Text style={[s`text-sm`, { color: colors.textTertiary }]}>Version</Text>
+              <Text style={[s`font-medium`, { color: colors.text }]}>1.0.0</Text>
             </View>
             
             <View style={s`mb-3`}>
-              <Text style={s`text-zinc-500 text-sm`}>Data Sources</Text>
-              <Text style={s`text-white font-medium`}>
-                {Platform.OS === 'android' ? 'Google Health Connect' : 'Apple HealthKit'}, Expo Sensors
+              <Text style={[s`text-sm`, { color: colors.textTertiary }]}>Data Sources</Text>
+              <Text style={[s`font-medium`, { color: colors.text }]}>
+                Expo Pedometer (Steps & Activity)
+              </Text>
+              <Text style={[s`text-xs mt-1`, { color: colors.textSecondary }]}>
+                Calories calculated from steps (~0.04 cal/step)
               </Text>
             </View>
             
             <View>
-              <Text style={s`text-zinc-500 text-sm`}>Privacy</Text>
-              <Text style={s`text-zinc-400 text-xs mt-1`}>
+              <Text style={[s`text-sm`, { color: colors.textTertiary }]}>Privacy</Text>
+              <Text style={[s`text-xs mt-1`, { color: colors.textSecondary }]}>
                 All health data is stored locally on your device. We never send your personal health information to external servers.
               </Text>
             </View>
@@ -239,12 +263,12 @@ export default function SettingsScreen() {
 
           {/* Sync Status Indicator */}
           {syncStatus.isSyncing && (
-            <View style={s`bg-emerald-400/10 border border-emerald-400/20 p-4 rounded-2xl mb-4`}>
+            <View style={[s`p-4 rounded-2xl mb-4`, { backgroundColor: colors.primaryLight, borderWidth: 1, borderColor: colors.primary + '33' }]}>
               <View style={s`flex-row items-center`}>
-                <Text style={s`text-emerald-400 mr-2`}>🔄</Text>
+                <Text style={s`mr-2`}>🔄</Text>
                 <View style={s`flex-1`}>
-                  <Text style={s`text-emerald-400 font-medium`}>Syncing health data...</Text>
-                  <Text style={s`text-emerald-300 text-sm`}>
+                  <Text style={[s`font-medium`, { color: colors.primary }]}>Syncing health data...</Text>
+                  <Text style={[s`text-sm`, { color: colors.primary }]}>
                     {syncStatus.syncProgress}% complete
                   </Text>
                 </View>
@@ -253,12 +277,12 @@ export default function SettingsScreen() {
           )}
 
           {syncStatus.error && (
-            <View style={s`bg-red-400/10 border border-red-400/20 p-4 rounded-2xl mb-4`}>
+            <View style={[s`p-4 rounded-2xl mb-4`, { backgroundColor: colors.error + '1A', borderWidth: 1, borderColor: colors.error + '33' }]}>
               <View style={s`flex-row items-center`}>
-                <Text style={s`text-red-400 mr-2`}>⚠️</Text>
+                <Text style={s`mr-2`}>⚠️</Text>
                 <View style={s`flex-1`}>
-                  <Text style={s`text-red-400 font-medium`}>Sync Error</Text>
-                  <Text style={s`text-red-300 text-sm`}>{syncStatus.error}</Text>
+                  <Text style={[s`font-medium`, { color: colors.error }]}>Sync Error</Text>
+                  <Text style={[s`text-sm`, { color: colors.error }]}>{syncStatus.error}</Text>
                 </View>
               </View>
             </View>

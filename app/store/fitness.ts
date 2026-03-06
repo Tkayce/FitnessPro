@@ -1,12 +1,12 @@
 // Zustand store for fitness app state management
 // Manages health data, sync status, and app state with TypeScript support
 
+import { Platform } from 'react-native';
 import { create } from 'zustand';
-import { DailySummary, WorkoutSession, SyncStatus, GoalProgress, WeeklyAnalytics, HealthPermissions } from '../types/fitness';
 import { databaseService } from '../services/database';
 import { healthConnectService } from '../services/healthConnect';
 import { healthKitService } from '../services/healthKit';
-import { Platform } from 'react-native';
+import { DailySummary, HealthPermissions, SyncStatus, WeeklyAnalytics, WorkoutSession } from '../types/fitness';
 
 interface FitnessState {
   // Health data
@@ -20,6 +20,11 @@ interface FitnessState {
   
   // Permissions
   permissions: HealthPermissions;
+  
+  // Step tracking session
+  isTrackingSteps: boolean;
+  sessionSteps: number;
+  sessionStartTime: Date | null;
   
   // UI state
   isLoading: boolean;
@@ -36,6 +41,11 @@ interface FitnessState {
   updateSelectedDate: (date: string) => void;
   clearCache: () => Promise<void>;
   setLoading: (loading: boolean) => void;
+  
+  // Step tracking controls
+  startStepTracking: () => boolean;
+  stopStepTracking: () => Promise<void>;
+  updateSessionSteps: () => void;
 }
 
 export const useFitnessStore = create<FitnessState>((set, get) => ({
@@ -59,12 +69,16 @@ export const useFitnessStore = create<FitnessState>((set, get) => ({
     workouts: false
   },
   
+  isTrackingSteps: false,
+  sessionSteps: 0,
+  sessionStartTime: null,
+  
   isLoading: false,
   selectedDate: new Date().toISOString().split('T')[0],
   
   // Initialize app - setup database and check permissions
   initializeApp: async () => {
-    const { setLoading, loadDailySummaries, loadWorkoutSessions, loadTodaysSummary } = get();
+    const { setLoading, loadDailySummaries, loadWorkoutSessions, loadTodaysSummary, startStepTracking } = get();
     
     try {
       setLoading(true);
@@ -95,6 +109,32 @@ export const useFitnessStore = create<FitnessState>((set, get) => ({
           lastSync
         }
       }));
+      
+      // Restore active tracking session if exists
+      const activeSession = await databaseService.getActiveSession();
+      if (activeSession) {
+        console.log('♻️ Restoring active tracking session...');
+        
+        // Restart tracking with restored session data
+        let success = false;
+        if (Platform.OS === 'android') {
+          success = healthConnectService.startTracking();
+        } else if (Platform.OS === 'ios') {
+          success = healthKitService.startTracking();
+        }
+        
+        if (success) {
+          set({
+            isTrackingSteps: true,
+            sessionSteps: activeSession.steps,
+            sessionStartTime: activeSession.startTime
+          });
+          console.log(`✅ Restored session: ${activeSession.steps} steps from ${activeSession.startTime.toLocaleTimeString()}`);
+        } else {
+          // Clear invalid session
+          await databaseService.clearActiveSession();
+        }
+      }
       
       console.log('✅ FitnessPro app initialized successfully');
     } catch (error) {
@@ -127,14 +167,14 @@ export const useFitnessStore = create<FitnessState>((set, get) => ({
         set((state) => ({
           permissions: {
             steps: true,
-            heartRate: true,
-            sleep: true,
-            workouts: true
+            heartRate: false, // Not available via Pedometer
+            sleep: false, // Sleep tracking removed
+            workouts: false // Workout tracking removed
           }
         }));
-        console.log('✅ Health data permissions granted');
+        console.log('✅ Step tracking permissions granted');
       } else {
-        console.log('❌ Health data permissions denied');
+        console.log('❌ Step tracking permissions denied');
       }
       
       return granted;
@@ -362,21 +402,173 @@ export const useFitnessStore = create<FitnessState>((set, get) => ({
   clearCache: async () => {
     try {
       await databaseService.clearCache();
-      set({
+      set((state) => ({
         dailySummaries: [],
         workoutSessions: [],
         todaySummary: null,
-        weeklyAnalytics: null
-      });
+        weeklyAnalytics: null,
+        syncStatus: {
+          ...state.syncStatus,
+          lastSync: null,
+          syncProgress: 0
+        }
+      }));
       console.log('🗑️ Cache cleared successfully');
     } catch (error) {
       console.error('❌ Error clearing cache:', error);
+      throw error;
     }
   },
   
   // Set loading state
   setLoading: (loading: boolean) => {
     set({ isLoading: loading });
+  },
+  
+  // Start step tracking session
+  startStepTracking: () => {
+    const { permissions } = get();
+    
+    if (!permissions.steps) {
+      console.log('❌ Step permissions not granted');
+      return false;
+    }
+    
+    let success = false;
+    
+    if (Platform.OS === 'android') {
+      success = healthConnectService.startTracking();
+    } else if (Platform.OS === 'ios') {
+      success = healthKitService.startTracking();
+    }
+    
+    if (success) {
+      const startTime = new Date();
+      set({
+        isTrackingSteps: true,
+        sessionSteps: 0,
+        sessionStartTime: startTime
+      });
+      
+      // Save session to database
+      databaseService.saveActiveSession({ startTime, steps: 0 });
+      console.log('✅ Step tracking session started');
+    }
+    
+    return success;
+  },
+  
+  // Stop step tracking session
+  stopStepTracking: async () => {
+    try {
+      let session = null;
+      
+      if (Platform.OS === 'android') {
+        session = healthConnectService.stopTracking();
+      } else if (Platform.OS === 'ios') {
+        session = await healthKitService.stopTracking();
+      }
+      
+      if (session && session.startTime && session.steps > 0) {
+        console.log(`📊 Session completed: ${session.steps} steps`);
+        
+        // Calculate duration in minutes
+        const durationMs = session.endTime.getTime() - session.startTime.getTime();
+        const durationMinutes = Math.round(durationMs / 60000);
+        
+        // Create workout session from step tracking
+        const workoutSession: WorkoutSession = {
+          id: `walking_${session.endTime.getTime()}`,
+          type: 'walking',
+          startTime: session.startTime,
+          endTime: session.endTime,
+          duration: durationMinutes,
+          steps: session.steps,
+          distance: Math.round(session.steps * 0.0008 * 100) / 100, // km
+          calories: Math.round(session.steps * 0.04),
+          notes: `Step tracking session: ${session.steps.toLocaleString()} steps`
+        };
+        
+        // Save workout to database
+        await databaseService.saveWorkoutSession(workoutSession);
+        console.log(`💾 Saved walking activity: ${workoutSession.steps} steps, ${workoutSession.duration}min`);
+        
+        // Reload workouts to update UI
+        await get().loadWorkoutSessions(20);
+        
+        // Update today's daily summary with accumulated steps
+        const today = new Date().toISOString().split('T')[0];
+        let todaySummary = await databaseService.getDailySummaryByDate(today);
+        
+        if (!todaySummary) {
+          // Create new daily summary for today
+          todaySummary = {
+            date: today,
+            steps: 0,
+            stepsGoal: 10000,
+            distance: 0,
+            calories: 0,
+            caloriesGoal: 2000,
+            activeMinutes: 0,
+            activeMinutesGoal: 30,
+            createdAt: new Date(),
+            updatedAt: new Date()
+          };
+        }
+        
+        // Add session steps to today's total
+        todaySummary.steps += session.steps;
+        todaySummary.distance = Math.round(todaySummary.steps * 0.0008 * 100) / 100;
+        todaySummary.calories += workoutSession.calories;
+        todaySummary.activeMinutes += durationMinutes;
+        todaySummary.updatedAt = new Date();
+        
+        // Save updated daily summary
+        await databaseService.saveDailySummary(todaySummary);
+        console.log(`📈 Updated today's summary: ${todaySummary.steps} total steps`);
+        
+        // Reload today's summary to update UI
+        await get().loadTodaysSummary();
+      }
+      
+      // Clear active session from database
+      await databaseService.clearActiveSession();
+      
+      set({
+        isTrackingSteps: false,
+        sessionSteps: session?.steps || 0,
+        sessionStartTime: null
+      });
+      
+      console.log('⏹️ Step tracking session stopped');
+    } catch (error) {
+      console.error('❌ Error stopping tracking:', error);
+    }
+  },
+  
+  // Update session steps (call periodically while tracking)
+  updateSessionSteps: () => {
+    const { isTrackingSteps, sessionStartTime } = get();
+    
+    if (!isTrackingSteps || !sessionStartTime) return;
+    
+    let status;
+    
+    if (Platform.OS === 'android') {
+      status = healthConnectService.getTrackingStatus();
+    } else if (Platform.OS === 'ios') {
+      status = healthKitService.getTrackingStatus();
+    }
+    
+    if (status) {
+      set({ sessionSteps: status.steps });
+      
+      // Save updated session to database every update
+      databaseService.saveActiveSession({ 
+        startTime: sessionStartTime, 
+        steps: status.steps 
+      });
+    }
   }
 }));
 
@@ -384,24 +576,31 @@ export const useFitnessStore = create<FitnessState>((set, get) => ({
 export const useFitnessSelectors = () => {
   const store = useFitnessStore();
   
+  // Calculate current steps including active session
+  const currentSteps = store.todaySummary 
+    ? store.todaySummary.steps + (store.isTrackingSteps ? store.sessionSteps : 0)
+    : (store.isTrackingSteps ? store.sessionSteps : 0);
+  
+  const stepsGoal = store.todaySummary?.stepsGoal || 10000;
+  
   return {
     // Today's goal progress
-    stepsProgress: store.todaySummary ? {
-      current: store.todaySummary.steps,
-      target: store.todaySummary.stepsGoal,
-      percentage: Math.round((store.todaySummary.steps / store.todaySummary.stepsGoal) * 100),
+    stepsProgress: {
+      current: currentSteps,
+      target: stepsGoal,
+      percentage: Math.round((currentSteps / stepsGoal) * 100),
       trend: 'up' as const,
       trendPercentage: 12 // Mock trend for now
-    } : null,
+    },
     
-    // Sleep progress
-    sleepProgress: store.todaySummary ? {
-      current: store.todaySummary.sleep || 0,
-      target: store.todaySummary.sleepGoal,
-      percentage: Math.round(((store.todaySummary.sleep || 0) / store.todaySummary.sleepGoal) * 100),
+    // Distance progress (calculated from steps: ~0.0008 km per step)
+    distanceProgress: {
+      current: Math.round(currentSteps * 0.0008 * 100) / 100,
+      target: 8, // 8 km target (~10,000 steps)
+      percentage: Math.round((currentSteps * 0.0008 / 8) * 100),
       trend: 'up' as const,
-      trendPercentage: 8
-    } : null,
+      trendPercentage: 12
+    },
     
     // Calories progress
     caloriesProgress: store.todaySummary ? {
@@ -427,7 +626,7 @@ export const useFitnessSelectors = () => {
       (Date.now() - store.syncStatus.lastSync.getTime()) > 2 * 60 * 60 * 1000, // 2 hours
     
     syncStatusText: store.syncStatus.isSyncing 
-      ? `Syncing... ${store.syncStatus.syncProgress}%`
+      ? `Syncing... ${(store.syncStatus.syncProgress || 0).toString()}%`
       : store.syncStatus.lastSync 
         ? `Last sync: ${store.syncStatus.lastSync.toLocaleDateString()}`
         : 'Never synced'

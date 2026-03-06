@@ -5,6 +5,7 @@ import React from 'react';
 import { Text, View } from 'react-native';
 import { LineChart } from 'react-native-gifted-charts';
 import { s } from 'react-native-wind';
+import { useTheme } from '../store/theme';
 import { ChartDataPoint } from '../types/fitness';
 
 interface TrendChartProps {
@@ -14,25 +15,19 @@ interface TrendChartProps {
   unit?: string;
 }
 
-// Color configurations for charts
-const chartColors = {
-  emerald: '#34d399',
-  blue: '#60a5fa',
-  purple: '#a78bfa',
-  orange: '#fb7185'
-};
-
 export const TrendChart: React.FC<TrendChartProps> = ({
   title,
   data,
   color = 'emerald',
   unit
 }) => {
+  const { colors, isDark } = useTheme();
+  
   const colorMap = {
-    emerald: '#34d399',
-    blue: '#60a5fa', 
-    purple: '#a78bfa',
-    orange: '#fb923c'
+    emerald: colors.primary,
+    blue: colors.blue, 
+    purple: colors.purple,
+    orange: colors.orange
   };
 
   // Calculate trend
@@ -44,42 +39,47 @@ export const TrendChart: React.FC<TrendChartProps> = ({
   const trendDirection = trendPercentage > 0 ? 'up' : trendPercentage < 0 ? 'down' : 'stable';
 
   return (
-    <View style={s`bg-zinc-900 border border-zinc-800 p-5 rounded-[32px] mb-4`}>
+    <View style={[s`p-5 rounded-[32px] mb-4`, { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }]}>
       {/* Header */}
       <View style={s`flex-row justify-between items-center mb-4`}>
-        <Text style={s`text-zinc-500 text-sm font-medium`}>{title}</Text>
+        <Text style={[s`text-sm font-medium`, { color: colors.textTertiary }]}>{title}</Text>
         <View style={s`flex-row items-center`}>
-          <Text style={s`text-xs text-zinc-400 mr-1`}>
+          <Text style={[s`text-xs mr-1`, { color: colors.textSecondary }]}>
             {trendDirection === 'up' ? '↗' : trendDirection === 'down' ? '↘' : '→'}
           </Text>
-          <Text style={s`text-${color}-400 text-xs`}>
-            {trendPercentage > 0 ? '+' : ''}{trendPercentage}%
+          <Text style={[s`text-xs`, { color: colorMap[color as keyof typeof colorMap] }]}>
+            {trendPercentage > 0 ? '+' : ''}{trendPercentage.toString()}%
           </Text>
         </View>
       </View>
 
-      {/* Chart Container */}
-      <View style={s`mb-4`}>
+      {/* Chart Container with padding to prevent clipping */}
+      <View style={{ marginBottom: 16, paddingHorizontal: 4, overflow: 'hidden' }}>
         {data.length > 0 ? (
           <LineChart
             data={data.map((point: ChartDataPoint) => ({ value: point.value, label: point.label }))}
             color={colorMap[color as keyof typeof colorMap]}
             thickness={3}
             hideDataPoints={false}
+            dataPointsRadius={3}
             dataPointsColor={colorMap[color as keyof typeof colorMap]}
             backgroundColor={'transparent'}
-            rulesColor={'#27272a'} // zinc-800
-            xAxisColor={'#52525b'} // zinc-600
-            yAxisColor={'#52525b'} // zinc-600
-            xAxisLabelTextStyle={{ color: '#a1a1aa', fontSize: 10 }} // zinc-400
-            yAxisTextStyle={{ color: '#a1a1aa', fontSize: 10 }} // zinc-400
+            rulesColor={colors.border}
+            xAxisColor={colors.border}
+            yAxisColor={colors.border}
+            xAxisLabelTextStyle={{ color: colors.textSecondary, fontSize: 10 }}
+            yAxisTextStyle={{ color: colors.textSecondary, fontSize: 10 }}
             height={120}
             curved
             animateOnDataChange
+            spacing={35}
+            initialSpacing={15}
+            endSpacing={15}
+            maxValue={Math.max(...data.map(d => d.value)) * 1.1}
           />
         ) : (
           <View style={s`h-32 items-center justify-center`}>
-            <Text style={s`text-zinc-500 text-sm`}>No data available</Text>
+            <Text style={[s`text-sm`, { color: colors.textTertiary }]}>No data available</Text>
           </View>
         )}
       </View>
@@ -87,15 +87,17 @@ export const TrendChart: React.FC<TrendChartProps> = ({
       {/* Stats */}
       <View style={s`flex-row justify-between`}>
         <View>
-          <Text style={s`text-zinc-400 text-xs`}>Latest</Text>
-          <Text style={s`text-white font-semibold`}>
-            {latestValue.toLocaleString()}{unit && ` ${unit}`}
+          <Text style={[s`text-xs`, { color: colors.textSecondary }]}>Latest</Text>
+          <Text style={[s`font-semibold`, { color: colors.text }]}>
+            {latestValue.toLocaleString()}
+            {unit && <Text> {unit}</Text>}
           </Text>
         </View>
         <View style={s`items-end`}>
-          <Text style={s`text-zinc-400 text-xs`}>7-day avg</Text>
-          <Text style={s`text-white font-semibold`}>
-            {Math.round(data.reduce((sum: number, d: ChartDataPoint) => sum + d.value, 0) / data.length || 0).toLocaleString()}{unit && ` ${unit}`}
+          <Text style={[s`text-xs`, { color: colors.textSecondary }]}>7-day avg</Text>
+          <Text style={[s`font-semibold`, { color: colors.text }]}>
+            {Math.round(data.reduce((sum: number, d: ChartDataPoint) => sum + d.value, 0) / data.length || 0).toLocaleString()}
+            {unit && <Text> {unit}</Text>}
           </Text>
         </View>
       </View>
